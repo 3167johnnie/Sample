@@ -1,0 +1,6 @@
+Oct 27, 2023 3:04:23 AM demo2_with_controlfile.DeleteFolderAndFiles main
+SEVERE: An IOException occurred: config.properties (The system cannot find the file specified)
+Oct 27, 2023 3:07:09 AM demo2_with_controlfile.DeleteFolderAndFiles main
+SEVERE: An IOException occurred: J:\W.O.R.K___\test\PriorityReports\OUTPUT
+Oct 27, 2023 7:00:56 AM demo2_with_controlfile.DeleteFolderAndFiles main
+SEVERE: An IOException occurred: J:\W.O.R.K___\test\PriorityReports\OUTPUT
