@@ -53,7 +53,7 @@ public class ACHFileWriter {
             System.out.println("ACH file written successfully to " + OUTPUT_FILE_PATH);
 
             // Update processed date after writing the file
-            updateProcessedDate(conn);
+          //  updateProcessedDate(conn);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -105,17 +105,17 @@ public class ACHFileWriter {
         return data.toString();
     }
 
-    private void updateProcessedDate(Connection conn) {
-        String updateQuery = "UPDATE ACHHEADER SET PROCESSED_DATE = ? WHERE FILE_NAME = ?";
-        try (PreparedStatement pstmt = conn.prepareStatement(updateQuery)) {
-            pstmt.setString(1, LocalDate.now().toString()); // Set processed date to current date
-            pstmt.setString(2, "ACH-CR-SBIN-28082014-016008-INW"); // Use the same FILE_NAME used in the header query
-            int rowsUpdated = pstmt.executeUpdate();
-            if (rowsUpdated > 0) {
-                System.out.println("Processed date updated successfully in the database.");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
+//    private void updateProcessedDate(Connection conn) {
+//        String updateQuery = "UPDATE ACHHEADER SET PROCESSED_DATE = ? WHERE FILE_NAME = ?";
+//        try (PreparedStatement pstmt = conn.prepareStatement(updateQuery)) {
+//            pstmt.setString(1, LocalDate.now().toString()); // Set processed date to current date
+//            pstmt.setString(2, "ACH-CR-SBIN-28082014-016008-INW"); // Use the same FILE_NAME used in the header query
+//            int rowsUpdated = pstmt.executeUpdate();
+//            if (rowsUpdated > 0) {
+//                System.out.println("Processed date updated successfully in the database.");
+//            }
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//    }
 }

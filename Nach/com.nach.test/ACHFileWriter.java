@@ -103,7 +103,7 @@ public class ACHFileWriter {
         data.append(String.format("%-20s", rs.getString("UMRN"))); // UMRN
         data.append(String.format("%-1s", rs.getString("FLAG"))); // Flag for success / return
         data.append(String.format("%-2s", rs.getString("REASON_CODE"))); // Reason Code
-        data.append(String.format("%-8s", rs.getString("processed_date"))); // Processed date
+      //  data.append(String.format("%-8s", rs.getString("processed_date"))); // Processed date
         return data.toString();
     }
 }
