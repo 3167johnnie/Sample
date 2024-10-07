@@ -9,100 +9,91 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class TotalValadition {
+public class TotalValadition1 {
     private String pattern = "ddMMyyyy";
 
     private static final String DB_URL = "jdbc:oracle:thin:@localhost:1521:orcl";
     private static final String USER = "SYS as SYSDBA";
     private static final String PASS = "Root@123";
-    private static final String OUTPUT_FILE_PATH = "J:\\W.O.R.K___\\Sample\\Nach\\src\\main\\java\\main\\RETURN_OUTPUT\\ACHCR with Valadition.txt";
+    private static final String OUTPUT_FILE_PATH = "J:\\W.O.R.K___\\Sample\\Nach\\src\\main\\java\\main\\RETURN_OUTPUT\\ACHCRvalida_1.txt";
 
     public static void main(String[] args) {
-        TotalValadition writer = new TotalValadition();
+    	TotalValadition1 writer = new TotalValadition1();
         writer.writeACHFile();
     }
 
     public void writeACHFile() {
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
-            // Fetch header data for validation
-        	System.out.println(" Logger 1 ");
-            String headerQuery = "SELECT TOT_NO_OF_ITEMS FROM ACHHEADER WHERE FILE_NAME ='ACH-CR-SBIN-13092021-TPZ000106691-INW' AND SETTLEMENT_DATE='13092021'";
-            PreparedStatement headerStatement = conn.prepareStatement(headerQuery);
-            ResultSet headerResult = headerStatement.executeQuery();
-            //-------------------------
-            //System.out.println("headerResult1 :::: "+ ResultSet.toString(headerResult));
-            System.out.println(" Logger 2 ");
-            ResultSetMetaData rsmd = headerResult.getMetaData();
-            int columnCount = rsmd.getColumnCount();
-            for (int i = 1; i <= columnCount; i++) {
-                System.out.println("Column name: " + rsmd.getColumnName(i));
-            }
-            //-------------------------
-            System.out.println(" Logger 3 ");
-            if (headerResult.next()) {
-                int totalNoOfItems = headerResult.getInt("TOT_NO_OF_ITEMS");
-                System.out.println(" Logger  line 47   4 ");
-                // Fetch data records and count the number of rows
-                String dataQuery = "SELECT * FROM ACHFILE WHERE FILE_NAME ='ACH-CR-SBIN-13092021-TPZ000106691-INW' AND SETTLEMENT_DATE='13092021'";
-                PreparedStatement dataStatement = conn.prepareStatement(dataQuery);
-                ResultSet dataResult = dataStatement.executeQuery();
+            if (validateRowCount(conn)) {
+                // Proceed to write the file
+                try (BufferedWriter writer = new BufferedWriter(new FileWriter(OUTPUT_FILE_PATH));
+                     Statement stmt = conn.createStatement()) {
 
-                int rowCount = 0;
-                while (dataResult.next()) {
-                    rowCount++;
-                }
-
-                // Validate if row count matches TOT_NO_OF_ITEMS
-                if (rowCount == totalNoOfItems) {
-                    // Proceed to write the file
-                    try (BufferedWriter writer = new BufferedWriter(new FileWriter(OUTPUT_FILE_PATH));
-                         Statement stmt = conn.createStatement()) {
-
-                        // Fetch header data for writing to the file
-                        headerResult = headerStatement.executeQuery();
-                        
-                        //-------------------------
-                        //System.out.println("headerResult1 :::: "+ ResultSet.toString(headerResult));
-
-                        ResultSetMetaData rsmd1 = headerResult.getMetaData();
-                        int columnCount1 = rsmd.getColumnCount();
-                        for (int i = 1; i <= columnCount1; i++) {
-                            System.out.println("Column name: " + rsmd1.getColumnName(i));
-                        }
-                        //-------------------------
-                        
-                        if (headerResult.next()) {
-                            String headerLine = createHeaderLine(headerResult);
-                            writer.write(headerLine);
-                            writer.newLine();
-                        }
-
-                        // Fetch data records and write them to the file
-                        dataResult = dataStatement.executeQuery();
-                        while (dataResult.next()) {
-                            String dataLine = createDataLine(dataResult);
-                            writer.write(dataLine);
-                            writer.newLine();
-                        }
-
-                        System.out.println("ACH file written successfully to " + OUTPUT_FILE_PATH);
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                    // Fetch header data for writing to the file
+                    String headerQuery = "SELECT ACH_TRANSACTION_CODE, CONTROL1, CONTROL_CHARACTER, TOT_NO_OF_ITEMS, TOT_AMOUNT, SETTLEMENT_DATE, " +
+                            "DESTINATION_BANK, SETTLEMENT_CYCLE, FILE_NAME, INW_GEN_DATE FROM ACHHEADER " +
+                            "WHERE FILE_NAME ='ACH-CR-SBIN-13092021-TPZ000106691-INW' AND SETTLEMENT_DATE='13092021'";
+                    ResultSet headerResult = stmt.executeQuery(headerQuery);
+                    if (headerResult.next()) {
+                        String headerLine = createHeaderLine(headerResult);
+                        writer.write(headerLine);
+                        writer.newLine();
                     }
-                } else {
-                    System.out.println("The file contents are invalid. The number of rows does not match.");
+
+                    // Fetch data records and write them to the file
+                    String dataQuery = "SELECT ACH_TRANSACTION_CODE, DESTINATION_ACCOUNT_TYPE, LEDGER_FOLIO_NUMBER, BENEFICIARY_HOLDER_NAME, USER_NAME, " +
+                            "AMOUNT, ACH_SEQ_NO, CHECKSUM, DEST_BANK, BENEFICIARY_BANK_ACCNO, SPONSOR_BANK, USER_NUMBER, TRANSACTION_REFERENCE, " +
+                            "PRODUCT_TYPE, BENEFICIARY_AADHAAR_NO, UMRN, FLAG, REASON_CODE FROM ACHFILE " +
+                            "WHERE FILE_NAME ='ACH-CR-SBIN-13092021-TPZ000106691-INW' AND SETTLEMENT_DATE='13092021'";
+                    ResultSet dataResult = stmt.executeQuery(dataQuery);
+                    while (dataResult.next()) {
+                        String dataLine = createDataLine(dataResult);
+                        writer.write(dataLine);
+                        writer.newLine();
+                    }
+
+                    System.out.println("ACH file written successfully to " + OUTPUT_FILE_PATH);
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
             } else {
-                System.out.println("No record found in ACHHEADER for the given file name and settlement date.");
+                System.out.println("The file contents are invalid. The number of rows does not match.");
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private boolean validateRowCount(Connection conn) {
+        try {
+            // Fetch the total number of items from ACHHEADER
+            String headerQuery = "SELECT TOT_NO_OF_ITEMS FROM ACHHEADER WHERE FILE_NAME ='ACH-CR-SBIN-13092021-TPZ000106691-INW' AND SETTLEMENT_DATE='13092021'";
+            PreparedStatement headerStatement = conn.prepareStatement(headerQuery);
+            ResultSet headerResult = headerStatement.executeQuery();
+
+            if (headerResult.next()) {
+                int totalNoOfItems = headerResult.getInt("TOT_NO_OF_ITEMS");
+
+                // Fetch the number of rows from ACHFILE
+                String dataQuery = "SELECT COUNT(*) AS ROW_COUNT FROM ACHFILE WHERE FILE_NAME ='ACH-CR-SBIN-13092021-TPZ000106691-INW' AND SETTLEMENT_DATE='13092021'";
+                PreparedStatement dataStatement = conn.prepareStatement(dataQuery);
+                ResultSet dataResult = dataStatement.executeQuery();
+
+                if (dataResult.next()) {
+                    int rowCount = dataResult.getInt("ROW_COUNT");
+
+                    // Validate if row count matches TOT_NO_OF_ITEMS
+                    return rowCount == totalNoOfItems;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     private String createHeaderLine(ResultSet rs) throws Exception {
@@ -154,4 +145,3 @@ public class TotalValadition {
         return data.toString();
     }
 }
-
