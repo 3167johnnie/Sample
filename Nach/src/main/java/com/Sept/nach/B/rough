@@ -1,0 +1,163 @@
+Certainly! To make the Java application dynamic and capable of processing records from the ACHHEADER table with a specific STATUS_CODE and SETTLEMENT_DATE, we can introduce a timer to periodically check for records that need processing.
+
+Here’s the updated code to implement this functionality. The application will run at a fixed interval, query the database, and process any records that match the specified criteria. It will fetch only one record at a time, write the data to a file, and then mark the record as processed or delete it based on your requirements.
+
+ReturnFileGenerator_seq.java
+This class remains largely unchanged but can be utilized to generate filenames.
+
+ACHCR_Validation.java
+This updated class will include a timer and implement the logic for fetching records based on the STATUS_CODE and SETTLEMENT_DATE.
+
+java
+Copy code
+package com.Sept.nach.A;
+
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.sql.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Timer;
+import java.util.TimerTask;
+
+public class ACHCR_Validation {
+
+    private static final String DB_URL = "jdbc:oracle:thin:@localhost:1521:orcl";
+    private static final String USER = "SYS as SYSDBA";
+    private static final String PASS = "Root@123";
+    private static final String STATUS_CODE = "10"; // Status code to filter
+    private static final long TIMER_INTERVAL = 60000; // Check every 60 seconds
+
+    private Timer timer;
+
+    public static void main(String[] args) {
+        ACHCR_Validation writer = new ACHCR_Validation();
+        writer.startTimer();
+    }
+
+    private void startTimer() {
+        timer = new Timer(true); // Timer runs as a daemon thread
+        timer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                processACHRecords();
+            }
+        }, 0, TIMER_INTERVAL);
+    }
+
+    private void processACHRecords() {
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
+            // Fetch the record with STATUS_CODE 10 and current date
+            String currentDate = new SimpleDateFormat("ddMMyyyy").format(new Date());
+            String query = "SELECT * FROM ACHHEADER WHERE STATUS_CODE = ? AND SETTLEMENT_DATE = ? FETCH FIRST 1 ROWS ONLY";
+
+            try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setString(1, STATUS_CODE);
+                stmt.setString(2, currentDate);
+
+                ResultSet resultSet = stmt.executeQuery();
+                if (resultSet.next()) {
+                    // Process the retrieved record
+                    String fileName = writeACHFile(resultSet, conn);
+
+                    // Optionally, update the STATUS_CODE to mark as processed
+                    updateStatusCode(conn, resultSet.getString("FILE_NAME"), "Processed");
+
+                    System.out.println("Processed ACH record and written to file: " + fileName);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String writeACHFile(ResultSet headerResult, Connection conn) throws SQLException {
+        String outputFileName = null;
+        try {
+            // Generate the output file name dynamically
+            outputFileName = ReturnFileGenerator_seq.generateReturnFile();
+
+            // Write the ACH header to the file
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFileName))) {
+                // Create header line from the ResultSet
+                String headerLine = createHeaderLine(headerResult);
+                writer.write(headerLine);
+                writer.newLine();
+
+                // Fetch and write data records
+                String fileName = headerResult.getString("FILE_NAME");
+                String dataQuery = "SELECT ACH_TRANSACTION_CODE, DESTINATION_ACCOUNT_TYPE, LEDGER_FOLIO_NUMBER, " +
+                        "BENEFICIARY_HOLDER_NAME, USER_NAME, AMOUNT, ACH_SEQ_NO, CHECKSUM, DEST_BANK, " +
+                        "BENEFICIARY_BANK_ACCNO, SPONSOR_BANK, USER_NUMBER, TRANSACTION_REFERENCE, " +
+                        "PRODUCT_TYPE, BENEFICIARY_AADHAAR_NO, UMRN, FLAG, REASON_CODE FROM ACHFILE " +
+                        "WHERE FILE_NAME = ?";
+
+                try (PreparedStatement dataStmt = conn.prepareStatement(dataQuery)) {
+                    dataStmt.setString(1, fileName);
+                    ResultSet dataResult = dataStmt.executeQuery();
+
+                    while (dataResult.next()) {
+                        String dataLine = createDataLine(dataResult);
+                        writer.write(dataLine);
+                        writer.newLine();
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return outputFileName; // Return the full file path
+    }
+
+    private String createHeaderLine(ResultSet rs) throws SQLException {
+        StringBuilder header = new StringBuilder();
+        header.append(String.format("%-2s", rs.getString("ACH_TRANSACTION_CODE"))); // ACH transaction code
+        header.append(String.format("%-7s", (rs.getString("CONTROL1") == null) ? "       " : rs.getString("CONTROL1"))); // Control
+        header.append(String.format("%-87s", "")); // Filler
+        header.append(String.format("%-7s", (rs.getString("CONTROL_CHARACTER") == null) ? "       " : rs.getString("CONTROL_CHARACTER"))); // Control
+        header.append(String.format("%-9s", rs.getString("TOT_NO_OF_ITEMS"))); // Total Number of Items
+        header.append(String.format("%-13s", rs.getString("TOT_AMOUNT"))); // Total Amount
+        header.append(String.format("%-8s", rs.getString("SETTLEMENT_DATE"))); // Settlement Date
+        header.append(String.format("%-8s", rs.getString("DESTINATION_BANK"))); // Destination Bank
+        // Append other required fields...
+        return header.toString();
+    }
+
+    private String createDataLine(ResultSet rs) throws SQLException {
+        StringBuilder data = new StringBuilder();
+        data.append(String.format("%-2s", rs.getString("ACH_TRANSACTION_CODE"))); // ACH transaction code
+        data.append(String.format("%-2s", rs.getString("DESTINATION_ACCOUNT_TYPE"))); // Destination Account Type
+        // Append other required fields...
+        return data.toString();
+    }
+
+    private void updateStatusCode(Connection conn, String fileName, String newStatus) {
+        try {
+            String updateQuery = "UPDATE ACHHEADER SET STATUS_CODE = ? WHERE FILE_NAME = ?";
+            try (PreparedStatement updateStmt = conn.prepareStatement(updateQuery)) {
+                updateStmt.setString(1, newStatus);
+                updateStmt.setString(2, fileName);
+                updateStmt.executeUpdate();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
+Key Changes and Features
+Timer Task: A timer is set to execute the processACHRecords method at regular intervals (60 seconds). You can adjust the TIMER_INTERVAL as needed.
+
+Database Query: The application queries the ACHHEADER table for records with a STATUS_CODE of 10 and the current date in the format DDMMYYYY.
+
+Single Record Processing: The application processes only one record at a time using FETCH FIRST 1 ROWS ONLY.
+
+File Writing: The writeACHFile method writes the header and associated data records from ACHFILE to a dynamically generated file.
+
+Status Code Update: After processing, the STATUS_CODE is updated to mark the record as processed. This can be customized based on your requirements (e.g., delete the record, update a different column, etc.).
+
+Error Handling: Basic error handling is included to manage exceptions that might occur during database access or file writing.
+
+Note
+Make sure to test this in a safe environment, especially if you are interacting with a production database.
+You might need to adjust the database connection parameters and SQL queries to match your actual database schema and requirements.
