@@ -153,6 +153,44 @@ BEGIN
 END;
 
 
+ ALTER TABLE ACHHEADER
+ADD (
+    FILE_STATUS NUMBER(2),
+    LAST_STATUS_TIME VARCHAR2(8),
+    RETURN_FILENAME VARCHAR2(100)
+);
+
+ UPDATE table_name
+SET column1 = value1, column2 = value2, ...
+WHERE condition;
+
+"00 - Initial stage.
+01 - File records inserted in to ACHFILE/ACHM Table.
+10 - Ready for return file.
+11- Return File Generation initiated
+12 -Return file generated success
+20 - return file generated suc.
+99 - error while inserting in ACHFILE table"
+ 
+
+ UPDATE ACHHEADER
+SET FILE_STATUS = 10,
+    LAST_STATUS_TIME = '120000',   -- Assuming it's a time in HHMMSS format
+    RETURN_FILENAME = ''
+WHERE FILE_NAME ='ACH-CR-SBIN-13092021-TPZ000106691-INW' AND SETTLEMENT_DATE='13092021';
+
+UPDATE ACHHEADER
+SET FILE_STATUS = 10,
+    LAST_STATUS_TIME = '120000',   -- Assuming it's a time in HHMMSS format
+    RETURN_FILENAME = ''
+WHERE FILE_NAME = 'ACH-CR-SBIN-13092021-TPZ000106691-INW'
+  AND SETTLEMENT_DATE = '13092021';
+
+
+Select * From ACHHEADER WHERE FILE_NAME ='ACH-CR-SBIN-13092021-TPZ000106691-INW'AND SETTLEMENT_DATE='13092021';
+Select * From ACHFILE WHERE FILE_NAME ='ACH-CR-SBIN-13092021-TPZ000106691-INW'AND SETTLEMENT_DATE='13092021';
+
+
 
 
 

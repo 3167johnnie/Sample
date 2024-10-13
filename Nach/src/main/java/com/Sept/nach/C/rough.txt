@@ -1,0 +1,340 @@
+package com.Sept.nach.A;
+
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.sql.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Timer;
+import java.util.TimerTask;
+
+public class ACHCR_Validation {
+
+    private static final String DB_URL = "jdbc:oracle:thin:@localhost:1521:orcl";
+    private static final String USER = "SYS as SYSDBA";
+    private static final String PASS = "Root@123";
+    private static final String STATUS_CODE = "10"; // Status code to filter
+    private static final long TIMER_INTERVAL = 60000; // Check every 60 seconds
+
+    private Timer timer;
+
+    public static void main(String[] args) {
+        ACHCR_Validation writer = new ACHCR_Validation();
+        writer.startTimer();
+    }
+
+    private void startTimer() {
+        timer = new Timer(true); // Timer runs as a daemon thread
+        timer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                processACHRecords();
+            }
+        }, 0, TIMER_INTERVAL);
+    }
+
+    private void processACHRecords() {
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
+            // Fetch the record with STATUS_CODE 10 and current date
+            String currentDate = new SimpleDateFormat("ddMMyyyy").format(new Date());
+            String query = "SELECT * FROM ACHHEADER WHERE STATUS_CODE = ? AND SETTLEMENT_DATE = ? FETCH FIRST 1 ROWS ONLY";
+
+            try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setString(1, STATUS_CODE);
+                stmt.setString(2, currentDate);
+
+                ResultSet resultSet = stmt.executeQuery();
+                if (resultSet.next()) {
+                    // Process the retrieved record
+                    String fileName = writeACHFile(resultSet, conn);
+
+                    // Optionally, update the STATUS_CODE to mark as processed
+                    updateStatusCode(conn, resultSet.getString("FILE_NAME"), "Processed");
+
+                    System.out.println("Processed ACH record and written to file: " + fileName);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String writeACHFile(ResultSet headerResult, Connection conn) throws SQLException {
+        String outputFileName = null;
+        try {
+            // Generate the output file name dynamically
+            outputFileName = ReturnFileGenerator_seq.generateReturnFile();
+
+            // Write the ACH header to the file
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFileName))) {
+                // Create header line from the ResultSet
+                String headerLine = createHeaderLine(headerResult);
+                writer.write(headerLine);
+                writer.newLine();
+
+                // Fetch and write data records
+                String fileName = headerResult.getString("FILE_NAME");
+                String dataQuery = "SELECT ACH_TRANSACTION_CODE, DESTINATION_ACCOUNT_TYPE, LEDGER_FOLIO_NUMBER, " +
+                        "BENEFICIARY_HOLDER_NAME, USER_NAME, AMOUNT, ACH_SEQ_NO, CHECKSUM, DEST_BANK, " +
+                        "BENEFICIARY_BANK_ACCNO, SPONSOR_BANK, USER_NUMBER, TRANSACTION_REFERENCE, " +
+                        "PRODUCT_TYPE, BENEFICIARY_AADHAAR_NO, UMRN, FLAG, REASON_CODE FROM ACHFILE " +
+                        "WHERE FILE_NAME = ?";
+
+                try (PreparedStatement dataStmt = conn.prepareStatement(dataQuery)) {
+                    dataStmt.setString(1, fileName);
+                    ResultSet dataResult = dataStmt.executeQuery();
+
+                    while (dataResult.next()) {
+                        String dataLine = createDataLine(dataResult);
+                        writer.write(dataLine);
+                        writer.newLine();
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return outputFileName; // Return the full file path
+    }
+
+    private String createHeaderLine(ResultSet rs) throws SQLException {
+        StringBuilder header = new StringBuilder();
+        header.append(String.format("%-2s", rs.getString("ACH_TRANSACTION_CODE"))); // ACH transaction code
+        header.append(String.format("%-7s", (rs.getString("CONTROL1") == null) ? "       " : rs.getString("CONTROL1"))); // Control
+        header.append(String.format("%-87s", "")); // Filler
+        header.append(String.format("%-7s", (rs.getString("CONTROL_CHARACTER") == null) ? "       " : rs.getString("CONTROL_CHARACTER"))); // Control
+        header.append(String.format("%-9s", rs.getString("TOT_NO_OF_ITEMS"))); // Total Number of Items
+        header.append(String.format("%-13s", rs.getString("TOT_AMOUNT"))); // Total Amount
+        header.append(String.format("%-8s", rs.getString("SETTLEMENT_DATE"))); // Settlement Date
+        header.append(String.format("%-8s", rs.getString("DESTINATION_BANK"))); // Destination Bank
+        // Append other required fields...
+        return header.toString();
+    }
+
+    private String createDataLine(ResultSet rs) throws SQLException {
+        StringBuilder data = new StringBuilder();
+        data.append(String.format("%-2s", rs.getString("ACH_TRANSACTION_CODE"))); // ACH transaction code
+        data.append(String.format("%-2s", rs.getString("DESTINATION_ACCOUNT_TYPE"))); // Destination Account Type
+        // Append other required fields...
+        return data.toString();
+    }
+
+    private void updateStatusCode(Connection conn, String fileName, String newStatus) {
+        try {
+            String updateQuery = "UPDATE ACHHEADER SET STATUS_CODE = ? WHERE FILE_NAME = ?";
+            try (PreparedStatement updateStmt = conn.prepareStatement(updateQuery)) {
+                updateStmt.setString(1, newStatus);
+                updateStmt.setString(2, fileName);
+                updateStmt.executeUpdate();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+} explain code line by line
+ChatGPT said:
+ChatGPT
+Sure! Let's go through the Java code line by line to explain its functionality. This code defines a class named ACHCR_Validation that processes ACH (Automated Clearing House) records from a database and writes them to a file.
+
+Imports
+java
+Copy code
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.sql.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Timer;
+import java.util.TimerTask;
+Imports necessary classes:
+BufferedWriter and FileWriter: For writing text to files.
+IOException: For handling input/output exceptions.
+SQLException: For handling SQL-related exceptions.
+SimpleDateFormat and Date: For date formatting.
+Timer and TimerTask: For scheduling tasks at fixed intervals.
+Class Declaration
+java
+Copy code
+public class ACHCR_Validation {
+Defines the public class ACHCR_Validation which contains the logic for processing ACH records.
+Constants
+java
+Copy code
+    private static final String DB_URL = "jdbc:oracle:thin:@localhost:1521:orcl";
+    private static final String USER = "SYS as SYSDBA";
+    private static final String PASS = "Root@123";
+    private static final String STATUS_CODE = "10"; // Status code to filter
+    private static final long TIMER_INTERVAL = 60000; // Check every 60 seconds
+Database Connection Constants:
+DB_URL: The URL for connecting to the Oracle database.
+USER: The username for database access (in this case, using a privileged account).
+PASS: The password for the database user.
+STATUS_CODE: A constant representing the status code to filter records (in this case, "10").
+TIMER_INTERVAL: The interval (60 seconds) at which to check for new ACH records.
+Timer Declaration
+java
+Copy code
+    private Timer timer;
+Declares a Timer instance that will be used to schedule periodic tasks.
+Main Method
+java
+Copy code
+    public static void main(String[] args) {
+        ACHCR_Validation writer = new ACHCR_Validation();
+        writer.startTimer();
+    }
+Main Method:
+Creates an instance of ACHCR_Validation.
+Calls the startTimer() method to begin processing ACH records at intervals.
+Start Timer Method
+java
+Copy code
+    private void startTimer() {
+        timer = new Timer(true); // Timer runs as a daemon thread
+        timer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                processACHRecords();
+            }
+        }, 0, TIMER_INTERVAL);
+    }
+startTimer() Method:
+Initializes the timer as a daemon thread (runs in the background).
+Schedules a TimerTask to execute processACHRecords() at fixed intervals.
+The task starts immediately (0 delay) and repeats every TIMER_INTERVAL milliseconds (60 seconds).
+Process ACH Records Method
+java
+Copy code
+    private void processACHRecords() {
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
+            // Fetch the record with STATUS_CODE 10 and current date
+            String currentDate = new SimpleDateFormat("ddMMyyyy").format(new Date());
+            String query = "SELECT * FROM ACHHEADER WHERE STATUS_CODE = ? AND SETTLEMENT_DATE = ? FETCH FIRST 1 ROWS ONLY";
+processACHRecords() Method:
+Establishes a connection to the database using the provided credentials.
+Formats the current date to ddMMyyyy.
+Prepares a SQL query to select records from the ACHHEADER table with STATUS_CODE 10 and today's date, limiting the result to one row.
+Execute Query
+java
+Copy code
+            try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setString(1, STATUS_CODE);
+                stmt.setString(2, currentDate);
+
+                ResultSet resultSet = stmt.executeQuery();
+                if (resultSet.next()) {
+Query Execution:
+Creates a PreparedStatement to avoid SQL injection attacks.
+Sets the first and second parameters of the query (STATUS_CODE and currentDate).
+Executes the query, returning a ResultSet of matching records.
+If a record is found, the code proceeds to process it.
+Process Retrieved Record
+java
+Copy code
+                    // Process the retrieved record
+                    String fileName = writeACHFile(resultSet, conn);
+
+                    // Optionally, update the STATUS_CODE to mark as processed
+                    updateStatusCode(conn, resultSet.getString("FILE_NAME"), "Processed");
+
+                    System.out.println("Processed ACH record and written to file: " + fileName);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+Processing Logic:
+Calls writeACHFile(resultSet, conn) to write the fetched ACH record to a file.
+Updates the status code in the ACHHEADER table to "Processed" for the retrieved record using updateStatusCode().
+Prints a confirmation message to the console indicating successful processing.
+Catches any exceptions and prints the stack trace.
+Write ACH File Method
+java
+Copy code
+    private String writeACHFile(ResultSet headerResult, Connection conn) throws SQLException {
+        String outputFileName = null;
+        try {
+            // Generate the output file name dynamically
+            outputFileName = ReturnFileGenerator_seq.generateReturnFile();
+writeACHFile() Method:
+Declares a variable to hold the output file name.
+Generates a file name using a method called ReturnFileGenerator_seq.generateReturnFile().
+Write to File
+java
+Copy code
+            // Write the ACH header to the file
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFileName))) {
+                // Create header line from the ResultSet
+                String headerLine = createHeaderLine(headerResult);
+                writer.write(headerLine);
+                writer.newLine();
+Writing Header:
+Creates a BufferedWriter to write to the generated output file.
+Calls createHeaderLine(headerResult) to generate the header line from the headerResult (result set).
+Writes the header line to the file followed by a newline.
+Fetch and Write Data Records
+java
+Copy code
+                // Fetch and write data records
+                String fileName = headerResult.getString("FILE_NAME");
+                String dataQuery = "SELECT ACH_TRANSACTION_CODE, DESTINATION_ACCOUNT_TYPE, LEDGER_FOLIO_NUMBER, " +
+                        "BENEFICIARY_HOLDER_NAME, USER_NAME, AMOUNT, ACH_SEQ_NO, CHECKSUM, DEST_BANK, " +
+                        "BENEFICIARY_BANK_ACCNO, SPONSOR_BANK, USER_NUMBER, TRANSACTION_REFERENCE, " +
+                        "PRODUCT_TYPE, BENEFICIARY_AADHAAR_NO, UMRN, FLAG, REASON_CODE FROM ACHFILE " +
+                        "WHERE FILE_NAME = ?";
+Data Retrieval Query:
+Fetches the FILE_NAME from the headerResult to use in the next query.
+Prepares a SQL query to select various fields from the ACHFILE table corresponding to the FILE_NAME.
+Execute Data Query
+java
+Copy code
+                try (PreparedStatement dataStmt = conn.prepareStatement(dataQuery)) {
+                    dataStmt.setString(1, fileName);
+                    ResultSet dataResult = dataStmt.executeQuery();
+Executing Data Query:
+Creates another PreparedStatement for the data query.
+Sets the FILE_NAME parameter.
+Executes the query to retrieve data records into a ResultSet.
+Writing Data Records
+java
+Copy code
+                    while (dataResult.next()) {
+                        String dataLine = createDataLine(dataResult);
+                        writer.write(dataLine);
+                        writer.newLine();
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return outputFileName; // Return the full file path
+    }
+Writing Data Lines:
+Iterates over the dataResult, creating each data line using createDataLine(dataResult).
+Writes each data line to the file.
+Catches any IOException during file operations and prints the stack trace.
+Returns the output file name after writing is complete.
+Creating Header Line
+java
+Copy code
+    private String createHeaderLine(ResultSet rs) throws SQLException {
+        StringBuilder header = new StringBuilder();
+        header.append(String.format("%-2s", rs.getString("ACH_TRANSACTION_CODE"))); // ACH transaction code
+        header.append(String.format("%-7s", (rs.getString("CONTROL1") == null) ? "       " : rs.getString("CONTROL1"))); // Control
+        header.append(String.format("%-87s", "")); // Filler
+        header.append(String.format("%-7s", (rs.getString("CONTROL_CHARACTER") == null) ? "       " : rs.getString("CONTROL_CHARACTER"))); // Control
+        header.append(String.format("%-9s", rs.getString("TOT_NO_OF_ITEMS"))); // Total Number of Items
+        header.append(String.format("%-13s", rs.getString("TOT_AMOUNT"))); // Total Amount
+        header.append(String.format("%-8s", rs.getString("SETTLEMENT_DATE"))); // Settlement Date
+        header.append(String.format("%-8s", rs.getString("DESTINATION_BANK"))); // Destination Bank
+        //
+
+
+
+
+
+
