@@ -1,0 +1,88 @@
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+public void writeACHFile(String fileName1, String settleDate) throws Exception {
+    Connection conn = null;
+    PreparedStatement headerStmt = null;
+    PreparedStatement dataStmt = null;
+    ResultSet headerResult = null;
+    ResultSet dataResult = null;
+
+    try {
+        conn = DriverManager.getConnection(DB_URL, USER, PASS);
+
+        String fileName = fileName1;                        
+        String settlementDate = settleDate;
+        String newReturnFile = generateDynamicFileName();
+        Path sourcePath = Paths.get(newReturnFile); // Source file path
+
+        // Validate row count before proceeding
+        if (validateRowCount(conn, fileName, settlementDate)) {
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(newReturnFile))) {
+
+                String headerQuery = "SELECT ACH_TRANSACTION_CODE, CONTROL1, CONTROL_CHARACTER, TOT_NO_OF_ITEMS, TOT_AMOUNT, SETTLEMENT_DATE, " +
+                        "DESTINATION_BANK, SETTLEMENT_CYCLE, FILE_NAME, INW_GEN_DATE FROM ACHHEADER " +
+                        "WHERE FILE_NAME = ? AND SETTLEMENT_DATE = ?";
+
+                headerStmt = conn.prepareStatement(headerQuery);
+                headerStmt.setString(1, fileName);
+                headerStmt.setString(2, settlementDate);
+                headerResult = headerStmt.executeQuery();
+
+                if (headerResult.next()) {
+                    String headerLine = createHeaderLine(headerResult);
+                    writer.write(headerLine);
+                    writer.newLine();
+                }
+
+                String dataQuery = "SELECT ACH_TRANSACTION_CODE, DESTINATION_ACCOUNT_TYPE, LEDGER_FOLIO_NUMBER, BENEFICIARY_HOLDER_NAME, USER_NAME, " +
+                        "AMOUNT, ACH_SEQ_NO, CHECKSUM, DEST_BANK, BENEFICIARY_BANK_ACCNO, SPONSOR_BANK, USER_NUMBER, TRANSACTION_REFERENCE, " +
+                        "PRODUCT_TYPE, BENEFICIARY_AADHAAR_NO, UMRN, FLAG, REASON_CODE FROM ACHFILE " +
+                        "WHERE FILE_NAME = ? AND SETTLEMENT_DATE = ?";
+
+                dataStmt = conn.prepareStatement(dataQuery);
+                dataStmt.setString(1, fileName);
+                dataStmt.setString(2, settlementDate);
+                dataResult = dataStmt.executeQuery();
+
+                // Write each data row to the file
+                while (dataResult.next()) {
+                    String dataLine = createDataLine(dataResult);
+                    writer.write(dataLine);
+                    writer.newLine();
+                }
+
+                System.out.println("ACH file written successfully to " + this.outputFileName);
+                updateFileStatus(12, this.outputFileName, fileName);
+
+                // Now copy the file to another directory
+                Path destinationPath = Paths.get("/destination/directory/", newReturnFile); // Set your destination directory
+                Files.copy(sourcePath, destinationPath);
+                System.out.println("File copied successfully to destination directory.");
+
+            } catch (IOException e) {
+                e.printStackTrace();
+                // Delete the generated file on failure
+                Files.deleteIfExists(sourcePath);
+                System.out.println("File deleted due to failure.");
+            }
+        } else {
+            System.out.println("The file contents are invalid. The number of rows does not match.");
+            updateFileStatus(13, null, fileName);
+        }
+
+    } catch (SQLException e) {
+        e.printStackTrace();
+    } finally {
+        try {
+            if (headerResult != null) headerResult.close();
+            if (dataResult != null) dataResult.close();
+            if (headerStmt != null) headerStmt.close();
+            if (dataStmt != null) dataStmt.close();
+            if (conn != null) conn.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
