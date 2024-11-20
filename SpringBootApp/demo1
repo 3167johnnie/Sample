@@ -1,0 +1,207 @@
+To set up a Spring Boot project in Eclipse without using Spring Tool Suite (STS) or dependency injection, and manually adding the necessary jars for Spring Boot, follow the steps below. We'll use Oracle Database and implement basic CRUD (Post, Get, Put, Delete) operations using Java 1.8, Spring Boot 3.1. We will also test the application using Postman.
+
+Step 1: Set Up Eclipse with Java 1.8
+Install Java 1.8 (if not already installed).
+
+Download Java 8 from Oracle's website.
+Install and configure it.
+Configure Eclipse for Java 1.8:
+
+In Eclipse, go to Window > Preferences.
+Under Java > Installed JREs, add your JDK 1.8 directory if it’s not already added.
+Under Java > Compiler, select 1.8 as the compliance level.
+Step 2: Create a New Dynamic Web Project in Eclipse
+Create a New Project:
+
+Go to File > New > Dynamic Web Project.
+Name the project SpringBootApp.
+Select Target Runtime as Apache Tomcat (it will be used for deployment purposes, though Spring Boot runs embedded).
+Click Finish.
+Create the src/main/java Directory:
+
+Inside the SpringBootApp project, create a src/main/java folder structure if not created by default.
+Step 3: Manually Add Spring Boot Dependencies (JARs)
+Create a lib Directory:
+
+Inside the project, create a lib folder to store all the dependencies.
+Download JARs: Download the following Spring Boot dependencies and place them inside the lib folder:
+
+spring-boot-3.1.0.jar (Download from Maven Central)
+spring-boot-starter-web-3.1.0.jar
+spring-boot-starter-data-jpa-3.1.0.jar
+spring-boot-starter-tomcat-3.1.0.jar
+spring-boot-starter-logging-3.1.0.jar
+spring-boot-autoconfigure-3.1.0.jar
+spring-boot-starter-jdbc-3.1.0.jar
+oracle-jdbc-<version>.jar (For Oracle database connectivity)
+Configure Classpath:
+
+Right-click on the project > Build Path > Configure Build Path.
+Add all the jars from the lib folder to the project’s Classpath under Libraries.
+Step 4: Set Up Application Configuration
+Create Application Properties:
+
+Create a file application.properties in src/main/resources.
+
+Configure the Oracle database connection:
+
+properties
+Copy code
+spring.datasource.url=jdbc:oracle:thin:@localhost:1521:xe
+spring.datasource.username=your_username
+spring.datasource.password=your_password
+spring.datasource.driver-class-name=oracle.jdbc.OracleDriver
+spring.jpa.database-platform=org.hibernate.dialect.Oracle12cDialect
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+Create Main Application Class:
+
+Create a new Java class SpringBootApp.java in src/main/java.
+
+This will serve as the entry point for the Spring Boot application.
+
+java
+Copy code
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class SpringBootApp {
+    public static void main(String[] args) {
+        SpringApplication.run(SpringBootApp.class, args);
+    }
+}
+Step 5: Create RESTful Microservices
+Create Entity Class:
+
+Create an Employee entity class to interact with the Oracle database.
+
+java
+Copy code
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
+
+@Entity
+@Table(name = "employee")
+public class Employee {
+    @Id
+    private int id;
+    private String name;
+    private String department;
+
+    // Getters and Setters
+}
+Create Repository Interface:
+
+Create an EmployeeRepository.java interface to handle CRUD operations.
+
+java
+Copy code
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
+}
+Create Controller Class:
+
+Create a RESTful controller for handling POST, GET, PUT, and DELETE requests.
+
+java
+Copy code
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/employees")
+public class EmployeeController {
+    @Autowired
+    private EmployeeRepository employeeRepository;
+
+    @PostMapping
+    public Employee addEmployee(@RequestBody Employee employee) {
+        return employeeRepository.save(employee);
+    }
+
+    @GetMapping("/{id}")
+    public Employee getEmployee(@PathVariable int id) {
+        return employeeRepository.findById(id).orElse(null);
+    }
+
+    @PutMapping("/{id}")
+    public Employee updateEmployee(@PathVariable int id, @RequestBody Employee employee) {
+        if (employeeRepository.existsById(id)) {
+            employee.setId(id);
+            return employeeRepository.save(employee);
+        }
+        return null;
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteEmployee(@PathVariable int id) {
+        employeeRepository.deleteById(id);
+    }
+}
+Step 6: Configure Web Deployment
+Create web.xml for Spring Boot:
+Add a web.xml file under src/main/webapp/WEB-INF/ to configure the dispatcher servlet.
+
+xml
+Copy code
+<web-app xmlns="http://java.sun.com/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://java.sun.com/xml/ns/javaee
+                             http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd"
+         version="3.0">
+    <servlet>
+        <servlet-name>dispatcher</servlet-name>
+        <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>dispatcher</servlet-name>
+        <url-pattern>/</url-pattern>
+    </servlet-mapping>
+</web-app>
+Step 7: Run the Application
+Run Application:
+
+Right-click on SpringBootApp.java > Run As > Java Application.
+Access Logs:
+
+Check the console for Spring Boot startup logs.
+Step 8: Testing the API with Postman
+POST Request (Create Employee):
+
+URL: http://localhost:8080/api/employees
+Method: POST
+Body (JSON):
+json
+Copy code
+{
+    "id": 1,
+    "name": "John Doe",
+    "department": "IT"
+}
+GET Request (Retrieve Employee by ID):
+
+URL: http://localhost:8080/api/employees/1
+Method: GET
+PUT Request (Update Employee):
+
+URL: http://localhost:8080/api/employees/1
+Method: PUT
+Body (JSON):
+json
+Copy code
+{
+    "name": "John Updated",
+    "department": "HR"
+}
+DELETE Request (Delete Employee):
+
+URL: http://localhost:8080/api/employees/1
+Method: DELETE
+Step 9: Final Notes
+If you face any issues with Oracle connectivity, ensure the Oracle JDBC driver is correctly added and accessible in your project.
+Make sure the Oracle database is running and accessible from your application.
+This guide sets up a basic Spring Boot project with manual dependency management and a CRUD microservice architecture, all tested with Postman.

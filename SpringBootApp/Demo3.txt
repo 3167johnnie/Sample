@@ -1,0 +1,249 @@
+Setting up a Spring Boot project in Eclipse without using Spring Tool Suite (STS) libraries and without relying on dependency injection can be done by manually adding required libraries (JARs) and configuring the Spring Boot application using a traditional approach. Here’s a detailed step-by-step guide to create a Spring Boot microservice project with basic database operations like POST, GET, PUT, and DELETE:
+
+Step 1: Set Up Eclipse IDE
+Install Eclipse: Make sure you have Eclipse IDE installed. If you don't have it, you can download it from the official website.
+Install Java: Ensure Java is installed on your machine. You can download it from the Oracle website or use OpenJDK.
+Step 2: Create a Dynamic Web Project in Eclipse
+Open Eclipse IDE and go to File > New > Dynamic Web Project.
+Name the project (e.g., SpringBootManualSetup) and click Finish.
+Step 3: Add Required JARs to Your Project
+Since we are not using dependency injection or Spring Tool Suite libraries, we will manually add the required Spring Boot dependencies (JARs).
+
+Download the Spring Boot JARs manually or via Maven Central Repository:
+
+Spring Boot Web
+Spring Boot Data JPA
+Spring Boot Starter Tomcat
+Spring Boot Starter JDBC (if needed)
+Spring Boot Starter Validation (for validation in the controller)
+Database JDBC driver (e.g., MySQL Connector/J for MySQL database)
+Create a lib folder under the WebContent/WEB-INF directory in the project.
+
+Add the downloaded JARs into the lib folder.
+
+In Eclipse, right-click your project > Build Path > Configure Build Path > Libraries > Add External JARs and select all the JARs you just added.
+
+Step 4: Create the Spring Boot Application Class
+Create a new class SpringBootApp.java under src (main folder):
+java
+Copy code
+package com.example;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.web.servlet.support.SpringBootServletInitializer;
+
+@SpringBootApplication
+public class SpringBootApp extends SpringBootServletInitializer {
+    public static void main(String[] args) {
+        SpringApplication.run(SpringBootApp.class, args);
+    }
+}
+Step 5: Configure application.properties for Database
+In src/main/resources, create the application.properties file with your database configurations:
+
+properties
+Copy code
+spring.datasource.url=jdbc:mysql://localhost:3306/mydb
+spring.datasource.username=root
+spring.datasource.password=root
+spring.datasource.driverClassName=com.mysql.cj.jdbc.Driver
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.database-platform=org.hibernate.dialect.MySQL8Dialect
+Note: Ensure you have the mysql-connector-java.jar in your project’s lib folder if you are using MySQL.
+
+Step 6: Create the Database (MySQL Example)
+Create a database in MySQL:
+sql
+Copy code
+CREATE DATABASE mydb;
+Create a table (example: users table for CRUD operations):
+sql
+Copy code
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100),
+    email VARCHAR(100)
+);
+Step 7: Create the Model Class (Entity Class)
+Create a User.java entity class under src/main/java/com/example/model:
+
+java
+Copy code
+package com.example.model;
+
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+
+@Entity
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+    private String name;
+    private String email;
+
+    // Getters and setters
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+}
+Step 8: Create the Repository (DAO)
+Create a UserRepository.java interface under src/main/java/com/example/repository:
+
+java
+Copy code
+package com.example.repository;
+
+import com.example.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface UserRepository extends JpaRepository<User, Integer> {
+}
+Step 9: Create the Service Layer
+Create a service class UserService.java under src/main/java/com/example/service:
+
+java
+Copy code
+package com.example.service;
+
+import com.example.model.User;
+import com.example.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class UserService {
+    @Autowired
+    private UserRepository userRepository;
+
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
+
+    public Optional<User> getUserById(int id) {
+        return userRepository.findById(id);
+    }
+
+    public User saveUser(User user) {
+        return userRepository.save(user);
+    }
+
+    public void deleteUser(int id) {
+        userRepository.deleteById(id);
+    }
+
+    public User updateUser(int id, User user) {
+        user.setId(id);
+        return userRepository.save(user);
+    }
+}
+Step 10: Create the Controller Layer
+Create a UserController.java under src/main/java/com/example/controller:
+
+java
+Copy code
+package com.example.controller;
+
+import com.example.model.User;
+import com.example.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/users")
+public class UserController {
+
+    @Autowired
+    private UserService userService;
+
+    @GetMapping
+    public List<User> getAllUsers() {
+        return userService.getAllUsers();
+    }
+
+    @GetMapping("/{id}")
+    public Optional<User> getUserById(@PathVariable int id) {
+        return userService.getUserById(id);
+    }
+
+    @PostMapping
+    public User saveUser(@RequestBody User user) {
+        return userService.saveUser(user);
+    }
+
+    @PutMapping("/{id}")
+    public User updateUser(@PathVariable int id, @RequestBody User user) {
+        return userService.updateUser(id, user);
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteUser(@PathVariable int id) {
+        userService.deleteUser(id);
+    }
+}
+Step 11: Run the Spring Boot Application
+In Eclipse, right-click on the SpringBootApp.java file and select Run As > Java Application.
+This will start your Spring Boot application with an embedded Tomcat server.
+Step 12: Test the Microservices (POST, GET, PUT, DELETE)
+You can test the created APIs using Postman or cURL:
+
+POST request (to add a new user):
+
+URL: http://localhost:8080/users
+Body:
+json
+Copy code
+{
+  "name": "John Doe",
+  "email": "john@example.com"
+}
+GET request (to get all users):
+
+URL: http://localhost:8080/users
+GET request (to get a specific user by ID):
+
+URL: http://localhost:8080/users/1
+PUT request (to update a user):
+
+URL: http://localhost:8080/users/1
+Body:
+json
+Copy code
+{
+  "name": "John Doe Updated",
+  "email": "johnupdated@example.com"
+}
+DELETE request (to delete a user):
+
+URL: http://localhost:8080/users/1
+Conclusion
+This guide walks through creating a Spring Boot application manually in Eclipse without using Spring Tool Suite (STS) libraries. It covers database integration with JPA, and CRUD operations through RESTful APIs for a microservice.

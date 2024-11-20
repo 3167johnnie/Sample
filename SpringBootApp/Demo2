@@ -1,0 +1,227 @@
+
+
+Here is a step-by-step guide to set up a Spring Boot 3.1 project in Eclipse using the traditional approach without dependency injection or specialized tools like STS. We will use Oracle Database for CRUD operations in a microservices architecture.
+
+1. Setting Up Eclipse
+Ensure you have Eclipse IDE installed (preferably the latest version).
+Install Java 1.8 JDK and configure it in Eclipse:
+Go to Window > Preferences > Java > Installed JREs, and set the path to your JDK.
+2. Create a New Java Project
+Open Eclipse and create a new Java project:
+
+File > New > Java Project
+Name it SpringBootCRUDApp.
+Convert it to a Maven project:
+
+Right-click the project > Configure > Convert to Maven Project.
+3. Add Dependencies Manually
+We will add the required Spring Boot JARs manually:
+
+Download the required Spring Boot dependencies from the Maven Repository:
+Spring Boot Starter (core dependencies)
+Spring Boot Starter Web (for RESTful services)
+Spring Boot Starter Data JPA (for database connectivity)
+Oracle JDBC driver (ojdbc8.jar)
+Add the JAR files:
+Right-click the project > Build Path > Configure Build Path > Add External JARs and select the downloaded JARs.
+4. Project Structure
+Organize your project as follows:
+
+css
+Copy code
+src/main/java
+    |__ com.example.demo
+        |__ controller
+        |__ model
+        |__ repository
+        |__ service
+        |__ SpringBootCrudApplication.java
+5. Application Class (Entry Point)
+Create a main class SpringBootCrudApplication:
+
+java
+Copy code
+package com.example.demo;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class SpringBootCrudApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(SpringBootCrudApplication.class, args);
+    }
+}
+6. Configure application.properties
+Create a file named application.properties in src/main/resources:
+
+properties
+Copy code
+spring.datasource.url=jdbc:oracle:thin:@localhost:1521:xe
+spring.datasource.username=your_username
+spring.datasource.password=your_password
+spring.datasource.driver-class-name=oracle.jdbc.OracleDriver
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.Oracle12cDialect
+server.port=8080
+Replace your_username and your_password with your Oracle DB credentials.
+
+7. Create the Entity Class
+Create a model package and a class Employee:
+
+java
+Copy code
+package com.example.demo.model;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+
+@Entity
+public class Employee {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    private String name;
+    private String designation;
+    private double salary;
+
+    // Getters and Setters
+}
+8. Create the Repository
+Create a repository package and an interface EmployeeRepository:
+
+java
+Copy code
+package com.example.demo.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import com.example.demo.model.Employee;
+
+public interface EmployeeRepository extends JpaRepository<Employee, Long> {
+}
+9. Create the Service Layer
+Create a service package and a class EmployeeService:
+
+java
+Copy code
+package com.example.demo.service;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.model.Employee;
+import com.example.demo.repository.EmployeeRepository;
+
+@Service
+public class EmployeeService {
+
+    @Autowired
+    private EmployeeRepository repository;
+
+    public List<Employee> getAllEmployees() {
+        return repository.findAll();
+    }
+
+    public Optional<Employee> getEmployeeById(Long id) {
+        return repository.findById(id);
+    }
+
+    public Employee saveEmployee(Employee employee) {
+        return repository.save(employee);
+    }
+
+    public void deleteEmployee(Long id) {
+        repository.deleteById(id);
+    }
+}
+10. Create the Controller
+Create a controller package and a class EmployeeController:
+
+java
+Copy code
+package com.example.demo.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.example.demo.model.Employee;
+import com.example.demo.service.EmployeeService;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/employees")
+public class EmployeeController {
+
+    @Autowired
+    private EmployeeService service;
+
+    @GetMapping
+    public List<Employee> getAllEmployees() {
+        return service.getAllEmployees();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Employee> getEmployeeById(@PathVariable Long id) {
+        return service.getEmployeeById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public Employee createEmployee(@RequestBody Employee employee) {
+        return service.saveEmployee(employee);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Employee> updateEmployee(@PathVariable Long id, @RequestBody Employee employee) {
+        return service.getEmployeeById(id)
+                .map(existingEmployee -> {
+                    employee.setId(existingEmployee.getId());
+                    return ResponseEntity.ok(service.saveEmployee(employee));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteEmployee(@PathVariable Long id) {
+        service.deleteEmployee(id);
+        return ResponseEntity.noContent().build();
+    }
+}
+11. Run the Application
+Right-click the main class (SpringBootCrudApplication) and select Run As > Java Application.
+The application will start on http://localhost:8080.
+12. Test with Postman
+Open Postman and test the following endpoints:
+POST http://localhost:8080/api/employees
+Add an employee with JSON body:
+json
+Copy code
+{
+    "name": "John Doe",
+    "designation": "Developer",
+    "salary": 50000
+}
+GET http://localhost:8080/api/employees
+GET http://localhost:8080/api/employees/{id}
+PUT http://localhost:8080/api/employees/{id}
+DELETE http://localhost:8080/api/employees/{id}
+13. Deploy and Host
+You can host your Spring Boot application using tools like:
+
+Apache Tomcat:
+Package the project as a WAR file (mvn package).
+Deploy the WAR in a Tomcat server.
+Standalone JAR:
+Run mvn clean install to create a JAR.
+Run the JAR file using java -jar.
+This completes the setup of a Spring Boot microservice in Eclipse with Oracle Database.
