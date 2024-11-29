@@ -1,0 +1,93 @@
+Component Document: ACHCR_Validation Component
+1. Overview
+The ACHCR_Validation component is a scheduled Java application designed to process ACH (Automated Clearing House) file records stored in a database. It periodically updates the file status, generates return files, and logs the processing outcomes. The application integrates with an Oracle database and manages ACH file states through a sequence of validations and file generation tasks.
+
+The component will be packaged as a JAR file and deployed in a Tomcat Server environment for scheduled execution.
+
+2. Functional Specifications
+Key Responsibilities:
+
+Query the ACHHEADER table to identify records with FILE_STATUS = 10.
+Update the file's status to indicate processing progress.
+Generate a return file for each record and log the result.
+Update the database with the final processing status and the generated return file name.
+3. Technical Specifications
+3.1 Prerequisites
+Environment: Java 1.8+, Oracle 12c, Apache Tomcat 9+
+Dependencies:
+JDBC Driver for Oracle (ojdbc8.jar)
+Java Timer API
+Configuration:
+Database connection settings (DB_URL, USER, PASS)
+File output directory path (/output/path/)
+3.2 Classes
+1. ACHCR_Validation
+
+Purpose: Main class to execute scheduled tasks every 2 minutes.
+Responsibilities:
+Connect to the database.
+Fetch rows with FILE_STATUS = 10.
+Process each row by invoking methods to generate return files and update the database.
+2. ReturnFileGenerator_seq
+
+Purpose: Generates return files for processed ACH records.
+Responsibilities:
+Creates a .txt file with the return data for a given ACHHEADER record.
+Ensures the file directory exists and handles file creation exceptions.
+3.3 Database Interactions
+Table: ACHHEADER
+Key Columns:
+ID (Primary Key)
+FILE_NAME
+FILE_STATUS (10: Pending, 11: Processing, 12: Success, 13: Failure)
+LAST_STATUS_TIME
+RETURN_FILENAME
+3.4 Workflow
+Query ACHHEADER:
+
+Fetch records where FILE_STATUS = 10.
+Update Status to Processing:
+
+Set FILE_STATUS = 11 and update LAST_STATUS_TIME.
+Generate Return File:
+
+Invoke ReturnFileGenerator_seq to create a .txt file.
+Update Final Status:
+
+On success, set FILE_STATUS = 12 and update RETURN_FILENAME.
+On failure, set FILE_STATUS = 13.
+4. Deployment Instructions
+Build and Package:
+
+Use Maven/Gradle to compile and package the code into a JAR file (e.g., ACHCR_Validation.jar).
+Tomcat Deployment:
+
+Place the JAR file in the lib folder of the Tomcat server.
+Include a scheduled job configuration (if using an external scheduler) or ensure the application is set to run continuously.
+Configuration Files:
+
+Ensure a properties/configuration file (e.g., db.properties) is included for database connection and file paths.
+Logging:
+
+Enable log output for troubleshooting and monitoring purposes using System.out or integrate with logging frameworks (e.g., Log4j).
+5. Configuration Details
+Example db.properties:
+
+properties
+Copy code
+DB_URL=jdbc:oracle:thin:@localhost:1521:orcl
+USER=SYS as SYSDBA
+PASS=Root@123
+OUTPUT_FILE_PATH=/output/path/
+6. Key Error Handling
+Database Connectivity:
+Log connection issues and retry on failure.
+File Generation:
+Handle IOException and return null if file creation fails.
+Data Integrity:
+Ensure database updates are atomic (use transactions if necessary).
+7. Post-Deployment Validation
+Verify connectivity to the Oracle database.
+Check log files for successful record processing and return file generation.
+Confirm that records are updated correctly in the ACHHEADER table.
+End of Document
